@@ -173,4 +173,4 @@ cython_debug/
 
 .env
 .venv
-credentials.json
+credentials/*

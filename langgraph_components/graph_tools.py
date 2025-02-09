@@ -29,8 +29,8 @@ def get_calendar_service():
     """Obtiene el servicio de Google Calendar."""
     creds = None
     # El archivo token.pickle almacena los tokens de acceso y actualización del usuario
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
+    if os.path.exists('credentials/token.pickle'):
+        with open('credentials/token.pickle', 'rb') as token:
             creds = pickle.load(token)
     
     # Si no hay credenciales válidas disponibles, permite que el usuario inicie sesión
@@ -39,10 +39,10 @@ def get_calendar_service():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
+                'credentials/credentials.json', SCOPES)
             creds = flow.run_local_server(port=0)
         # Guarda las credenciales para la próxima ejecución
-        with open('token.pickle', 'wb') as token:
+        with open('credentials/token.pickle', 'wb') as token:
             pickle.dump(creds, token)
 
     return build('calendar', 'v3', credentials=creds)
@@ -50,8 +50,8 @@ def get_calendar_service():
 def get_gmail_service():
     """Obtiene el servicio de Gmail."""
     creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
+    if os.path.exists('credentials/token.pickle'):
+        with open('credentials/token.pickle', 'rb') as token:
             creds = pickle.load(token)
     
     if not creds or not creds.valid:
@@ -59,9 +59,9 @@ def get_gmail_service():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
+                'credentials/credentials.json', SCOPES)
             creds = flow.run_local_server(port=0)
-        with open('token.pickle', 'wb') as token:
+        with open('credentials/token.pickle', 'wb') as token:
             pickle.dump(creds, token)
 
     return build('gmail', 'v1', credentials=creds)
@@ -176,7 +176,7 @@ def verify_code(email: str, code: str) -> bool:
         
         # Comparación exacta
         is_valid = stored_code == input_code
-        print(f"Comparando códigos: almacenado='{stored_code}' vs ingresado='{input_code}' -> {is_valid}")
+        # print(f"Comparando códigos: almacenado='{stored_code}' vs ingresado='{input_code}' -> {is_valid}")
         
         # Si es válido, limpiar el código usado
         if is_valid:

@@ -1,4 +1,4 @@
-from .llm import load_llm_openai
+from .llm import load_llm_openai, load_llm_deepseek
 from .graph_tools import tools
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph_components.states import State
@@ -17,6 +17,7 @@ def load_config():
 def load_graph():
     prompts = load_config()
     llm = load_llm_openai()
+    # llm = load_llm_deepseek()
 
     # Configurar el prompt del sistema
     system_prompt = ChatPromptTemplate.from_messages([

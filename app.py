@@ -6,6 +6,7 @@ import re
 
 def validate_email(email: str) -> bool:
     """Valida que el email tenga un formato correcto"""
+    email = email.strip()
     email_pattern = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     return bool(email_pattern.match(email))
 

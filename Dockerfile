@@ -40,15 +40,16 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copiar el resto del código
-COPY . .
-
-# Crear usuario no root y asignar permisos
-RUN adduser --disabled-password --gecos '' appuser && \
+# Crear usuario no root y directorios necesarios
+ARG USER_ID=1000
+RUN useradd -u ${USER_ID} -m -s /bin/bash appuser && \
     mkdir -p /app/config && \
     chown -R appuser:appuser /app && \
     chmod -R 755 /app && \
-    chmod -R 777 /app/config
+    chmod -R 775 /app/config
+
+# Copiar el resto del código
+COPY --chown=appuser:appuser . .
 
 USER appuser
 

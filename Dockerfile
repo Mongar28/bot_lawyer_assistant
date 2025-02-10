@@ -43,9 +43,13 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copiar el resto del código
 COPY . .
 
-# Crear usuario no root para mayor seguridad
+# Crear usuario no root y asignar permisos
 RUN adduser --disabled-password --gecos '' appuser && \
-    chown -R appuser:appuser /app
+    mkdir -p /app/config && \
+    chown -R appuser:appuser /app && \
+    chmod -R 755 /app && \
+    chmod -R 777 /app/config
+
 USER appuser
 
 # Exponer el puerto que usa Streamlit
@@ -53,7 +57,7 @@ EXPOSE 8501
 
 # Configurar healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+    CMD curl --fail http://localhost:8501/_stcore/health || exit 1
 
 # Comando para ejecutar la aplicación
-CMD ["python", "-m", "streamlit", "run", "app.py"]
+CMD ["streamlit", "run", "app.py", "--server.address", "0.0.0.0"]

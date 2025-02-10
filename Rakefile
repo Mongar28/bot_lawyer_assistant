@@ -21,11 +21,6 @@ namespace :app do
     sh "docker-compose logs -f"
   end
 
-  desc "Ejecutar tests"
-  task :test do
-    sh "python -m pytest tests/"
-  end
-
   desc "Limpiar archivos temporales y caché"
   task :clean do
     sh "find . -type d -name '__pycache__' -exec rm -r {} +"
@@ -35,6 +30,11 @@ namespace :app do
   desc "Verificar estado de la aplicación"
   task :status do
     sh "docker-compose ps"
+  end
+
+  desc "Acceder al shell del contenedor"
+  task :shell do
+    sh "docker-compose exec web bash"
   end
 end
 

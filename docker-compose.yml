@@ -1,0 +1,15 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        USER_ID: ${USER_ID:-1000}
+    env_file: .env
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - GOOGLE_CALENDAR_CREDENTIALS=${GOOGLE_CALENDAR_CREDENTIALS}

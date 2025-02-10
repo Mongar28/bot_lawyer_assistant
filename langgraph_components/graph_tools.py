@@ -227,9 +227,19 @@ def create_calendar_event(date: str, time: str, client_name: str, client_email: 
                 'dateTime': (event_datetime + timedelta(hours=1)).isoformat(),
                 'timeZone': 'America/Bogota',
             },
+            'attendees': [
+                {'email': client_email}
+            ],
+            'reminders': {
+                'useDefault': False,
+                'overrides': [
+                    {'method': 'email', 'minutes': 24 * 60},  # 24 horas antes
+                    {'method': 'popup', 'minutes': 30}        # 30 minutos antes
+                ]
+            }
         }
         
-        event = service.events().insert(calendarId='primary', body=event).execute()
+        event = service.events().insert(calendarId='primary', body=event, sendUpdates='all').execute()
         return f"Cita agendada exitosamente. Enlace: {event.get('htmlLink')}"
     except Exception as e:
         return f"Error al agendar la cita: {str(e)}"

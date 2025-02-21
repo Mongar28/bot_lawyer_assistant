@@ -41,8 +41,8 @@ Temis es un asistente virtual inteligente diseñado para gestionar citas y consu
 - Streamlit 1.42.0
 
 ### Modelos de IA
-- OpenAI GPT-4
-- DeepSeek (opcional)
+- OpenAI GPT-4o-mini
+- DeepSeek
 
 ### Integraciones
 - Google Calendar

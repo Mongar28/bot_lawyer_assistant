@@ -44,14 +44,22 @@ RUN pip install --no-cache-dir --upgrade pip && \
 ARG USER_ID=1000
 RUN useradd -u ${USER_ID} -m -s /bin/bash appuser && \
     mkdir -p /app/config && \
+    mkdir -p /app/credentials && \
+    touch /app/config/verification_codes.yaml && \
     chown -R appuser:appuser /app && \
     chmod -R 755 /app && \
-    chmod -R 775 /app/config
+    chmod 777 /app/config && \
+    chmod 666 /app/config/verification_codes.yaml && \
+    chmod -R 777 /app/credentials
 
 # Copiar el resto del código
 COPY --chown=appuser:appuser . .
 
 USER appuser
+
+# Asegurar permisos después de copiar
+RUN chmod -R 777 /app/config && \
+    chmod -R 777 /app/credentials
 
 # Exponer el puerto que usa Streamlit
 EXPOSE 8501

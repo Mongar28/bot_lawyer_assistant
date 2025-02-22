@@ -105,34 +105,63 @@ def send_verification_code(email: str) -> str:
         str: Mensaje de confirmación
     """
     try:
+        print(f"Iniciando proceso de envío de código para {email}")
+        
         # Generar código
         code = generate_verification_code()
+        print(f"Código generado: {code}")
+        
+        # Verificar permisos del directorio
+        config_dir = os.path.dirname(VERIFICATION_FILE)
+        print(f"Verificando permisos de {config_dir}")
+        print(f"Permisos actuales: {oct(os.stat(config_dir).st_mode)}")
         
         # Guardar código
-        save_verification_code(email, code)
+        try:
+            save_verification_code(email, code)
+            print("Código guardado exitosamente")
+        except Exception as e:
+            print(f"Error guardando código: {str(e)}")
+            print(f"Stack trace completo:", exc_info=True)
+            raise
+        
+        # Verificar si el archivo existe y sus permisos
+        if os.path.exists(VERIFICATION_FILE):
+            print(f"Archivo existe, permisos: {oct(os.stat(VERIFICATION_FILE).st_mode)}")
+        else:
+            print("El archivo no existe después de intentar guardarlo")
         
         # Enviar correo
-        service = get_gmail_service()
-        message = MIMEText(f"""
-        Hola,
-        
-        Tu código de verificación es: {code}
-        
-        Este código expirará en 10 minutos.
-        
-        Saludos,
-        Temis - Asistente Virtual
-        """)
-        
-        message['to'] = email
-        message['subject'] = 'Código de verificación - Cita Legal'
-        
-        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-        service.users().messages().send(userId='me', body={'raw': raw}).execute()
-        
-        return "Código de verificación enviado. Por favor, revisa tu correo."
+        try:
+            service = get_gmail_service()
+            message = MIMEText(f"""
+            Hola,
+            
+            Tu código de verificación es: {code}
+            
+            Este código expirará en 10 minutos.
+            """)
+            
+            message['to'] = email
+            message['subject'] = 'Código de Verificación - Asistente Legal'
+            
+            create_message = {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
+            
+            try:
+                service.users().messages().send(userId="me", body=create_message).execute()
+                print("Correo enviado exitosamente")
+                return "Código de verificación enviado exitosamente."
+            except Exception as e:
+                print(f"Error enviando correo: {str(e)}")
+                raise
+                
+        except Exception as e:
+            print(f"Error con el servicio de Gmail: {str(e)}")
+            raise
+            
     except Exception as e:
-        return f"Error al enviar código: {str(e)}"
+        print(f"Error general en send_verification_code: {str(e)}")
+        raise
 
 @tool
 def verify_code(email: str, code: str) -> bool:

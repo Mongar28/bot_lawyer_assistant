@@ -56,15 +56,16 @@ def get_gmail_service():
     try:
         creds = None
         credentials_dir = '/app/credentials'
-        token_path = f'{credentials_dir}/token.pickle'
+        token_path = os.path.join(credentials_dir, 'token.pickle')
         
-        # Asegurar que el directorio credentials existe con los permisos correctos
+        # Verificar y crear directorios si no existen
         os.makedirs(credentials_dir, mode=0o777, exist_ok=True)
         
         # Verificar permisos del directorio
-        dir_stat = os.stat(credentials_dir)
-        print(f"Permisos del directorio credentials: {stat.filemode(dir_stat.st_mode)}")
-        print(f"Propietario del directorio: {dir_stat.st_uid}:{dir_stat.st_gid}")
+        try:
+            os.chmod(credentials_dir, 0o777)
+        except Exception as e:
+            print(f"Advertencia: No se pudieron establecer permisos en {credentials_dir}: {e}")
         
         if os.path.exists(token_path):
             print(f"Leyendo token desde {token_path}")
@@ -81,39 +82,30 @@ def get_gmail_service():
                 creds.refresh(Request())
             else:
                 print("Generando nuevo token")
-                credentials_file = f'{credentials_dir}/credentials.json'
+                credentials_file = os.path.join(credentials_dir, 'credentials.json')
                 if not os.path.exists(credentials_file):
                     raise FileNotFoundError(f"No se encuentra el archivo {credentials_file}")
-                    
+                
                 flow = InstalledAppFlow.from_client_secrets_file(credentials_file, SCOPES)
                 creds = flow.run_local_server(port=0)
             
-            # Guardar el token con los permisos correctos
+            # Guardar el token directamente (sin usar archivo temporal)
             print("Guardando nuevo token")
-            
-            # Crear archivo temporal en el mismo directorio
-            temp_fd, temp_path = tempfile.mkstemp(dir=credentials_dir)
             try:
-                # Escribir datos al archivo temporal
-                with os.fdopen(temp_fd, 'wb') as temp_file:
-                    pickle.dump(creds, temp_file)
+                with open(token_path, 'wb') as token:
+                    pickle.dump(creds, token)
+                    token.flush()
+                    os.fsync(token.fileno())
                 
-                # Establecer permisos en el archivo temporal
-                os.chmod(temp_path, 0o666)
-                
-                # Mover el archivo temporal al destino final
-                shutil.move(temp_path, token_path)
+                # Intentar establecer permisos
+                try:
+                    os.chmod(token_path, 0o666)
+                except Exception as e:
+                    print(f"Advertencia: No se pudieron establecer permisos en {token_path}: {e}")
                 
             except Exception as e:
-                # Limpiar en caso de error
-                if os.path.exists(temp_path):
-                    os.unlink(temp_path)
+                print(f"Error guardando token: {str(e)}")
                 raise
-            
-            # Verificar permisos finales
-            file_stat = os.stat(token_path)
-            print(f"Token guardado. Permisos: {stat.filemode(file_stat.st_mode)}")
-            print(f"Propietario: {file_stat.st_uid}:{file_stat.st_gid}")
 
         return build('gmail', 'v1', credentials=creds)
         
@@ -122,8 +114,11 @@ def get_gmail_service():
         print(f"Estado del sistema:")
         print(f"- Directorio actual: {os.getcwd()}")
         print(f"- Usuario actual: {os.getuid()}:{os.getgid()}")
-        if os.path.exists(credentials_dir):
-            print(f"- Contenido de {credentials_dir}: {os.listdir(credentials_dir)}")
+        print(f"- Permisos del directorio credentials:")
+        try:
+            print(f"  {os.stat(credentials_dir)}")
+        except Exception as e:
+            print(f"  Error obteniendo permisos: {e}")
         raise
 
 def generate_verification_code():
@@ -131,33 +126,31 @@ def generate_verification_code():
     return ''.join(random.choices(string.digits, k=6))
 
 def save_verification_code(email: str, code: str):
-    """Guarda el código en el archivo YAML de manera segura y atómica."""
+    """Guarda el código en el archivo YAML."""
     try:
         print(f"Iniciando guardado de código para {email}")
         
         config_dir = '/app/config'
-        verification_file = '/app/config/verification_codes.yaml'
+        verification_file = os.path.join(config_dir, 'verification_codes.yaml')
         
-        # Verificar permisos del directorio
-        if not os.path.exists(config_dir):
-            print(f"Creando directorio {config_dir}")
-            os.makedirs(config_dir, mode=0o777, exist_ok=True)
+        # Asegurar que el directorio existe
+        os.makedirs(config_dir, mode=0o777, exist_ok=True)
         
-        # Verificar permisos actuales
-        dir_stat = os.stat(config_dir)
-        print(f"Permisos del directorio: {stat.filemode(dir_stat.st_mode)}")
-        print(f"Propietario: {dir_stat.st_uid}:{dir_stat.st_gid}")
+        # Intentar establecer permisos del directorio
+        try:
+            os.chmod(config_dir, 0o777)
+        except Exception as e:
+            print(f"Advertencia: No se pudieron establecer permisos en {config_dir}: {e}")
         
-        # Leer códigos existentes con bloqueo de archivo
+        # Leer códigos existentes
         codes = {}
         if os.path.exists(verification_file):
-            with open(verification_file, 'r') as f:
-                # Adquirir bloqueo exclusivo
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
+            try:
+                with open(verification_file, 'r') as f:
                     codes = yaml.safe_load(f) or {}
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            except Exception as e:
+                print(f"Error leyendo archivo: {e}")
+                codes = {}
         
         # Preparar nuevo código
         current = datetime.now(ZoneInfo('America/Bogota'))
@@ -166,25 +159,22 @@ def save_verification_code(email: str, code: str):
             'expires': (current + timedelta(minutes=10)).isoformat()
         }
         
-        # Escribir atómicamente usando archivo temporal
-        with tempfile.NamedTemporaryFile(mode='w', dir=config_dir, delete=False) as temp_file:
-            yaml.dump(codes, temp_file)
-            temp_file.flush()
-            os.fsync(temp_file.fileno())
+        # Guardar directamente (sin usar archivo temporal)
+        try:
+            with open(verification_file, 'w') as f:
+                yaml.dump(codes, f)
+                f.flush()
+                os.fsync(f.fileno())
             
-            # Establecer permisos en el archivo temporal
-            os.chmod(temp_file.name, 0o666)
-            
-        # Mover el archivo temporal al destino final (operación atómica)
-        shutil.move(temp_file.name, verification_file)
-        
-        # Verificar resultado final
-        if os.path.exists(verification_file):
-            file_stat = os.stat(verification_file)
-            print(f"Archivo guardado. Permisos: {stat.filemode(file_stat.st_mode)}")
-            print(f"Propietario: {file_stat.st_uid}:{file_stat.st_gid}")
-        else:
-            raise Exception("El archivo no existe después de la escritura")
+            # Intentar establecer permisos
+            try:
+                os.chmod(verification_file, 0o666)
+            except Exception as e:
+                print(f"Advertencia: No se pudieron establecer permisos en {verification_file}: {e}")
+                
+        except Exception as e:
+            print(f"Error escribiendo archivo: {str(e)}")
+            raise
             
     except Exception as e:
         print(f"Error guardando código: {str(e)}")

@@ -8,12 +8,17 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - ./app.py:/app/app.py
-      - ./requirements.txt:/app/requirements.txt
-      - ./langgraph_components:/app/langgraph_components
-      - ./credentials:/app/credentials
-      # No montamos el directorio config para mantener los permisos del contenedor
+      - ./app.py:/app/app.py:ro
+      - ./requirements.txt:/app/requirements.txt:ro
+      - ./langgraph_components:/app/langgraph_components:ro
+      - credentials_data:/app/credentials
+      - config_data:/app/config
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - GOOGLE_CALENDAR_CREDENTIALS=${GOOGLE_CALENDAR_CREDENTIALS}
+    user: "${USER_ID:-1000}:${USER_ID:-1000}"
+
+volumes:
+  credentials_data:
+  config_data:

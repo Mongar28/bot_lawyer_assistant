@@ -43,32 +43,33 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Crear usuario no root y directorios necesarios
 ARG USER_ID=1000
 RUN useradd -u ${USER_ID} -m -s /bin/bash appuser && \
-    # Create directories with proper ownership from the start
-    mkdir -p /app/config /app/credentials && \
+    # Crear estructura de directorios
+    mkdir -p /app/config /app/credentials /app/credentials/tmp && \
+    # Crear archivos necesarios
     touch /app/config/verification_codes.yaml && \
-    # Set ownership in a single layer
+    # Establecer propiedad
     chown -R appuser:appuser /app && \
-    # Set directory permissions
-    find /app -type d -exec chmod 755 {} \; && \
-    # Set specific permissions for config and credentials directories
-    chmod 777 /app/config && \
-    chmod 777 /app/credentials && \
-    chmod 666 /app/config/verification_codes.yaml && \
-    # Verify permissions were set correctly
-    ls -la /app/config /app/credentials
+    # Establecer permisos base
+    chmod -R 755 /app && \
+    # Establecer permisos especiales
+    chmod -R 777 /app/config /app/credentials && \
+    chmod 666 /app/config/verification_codes.yaml
 
-# Copiar el resto del código
+# Copiar el código de la aplicación
 COPY --chown=appuser:appuser . .
 
+# Cambiar al usuario no root
 USER appuser
 
-# Asegurar permisos después de copiar y verificar
-RUN find /app -type d -exec chmod 755 {} \; && \
-    chmod 777 /app/config && \
-    chmod 777 /app/credentials && \
+# Verificar y asegurar permisos finales
+RUN chmod -R 777 /app/config /app/credentials && \
     chmod 666 /app/config/verification_codes.yaml && \
-    # Verify final permissions
-    ls -la /app/config /app/credentials
+    # Verificar estructura y permisos
+    echo "Verificando estructura y permisos:" && \
+    ls -la /app/config /app/credentials && \
+    # Crear archivo de prueba para verificar permisos
+    touch /app/credentials/test_write && \
+    rm /app/credentials/test_write
 
 # Exponer el puerto que usa Streamlit
 EXPOSE 8501
@@ -77,5 +78,5 @@ EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl --fail http://localhost:8501/_stcore/health || exit 1
 
-# Comando para ejecutar la aplicación con permisos forzados
-CMD ["sh", "-c", "chmod 777 /app/config && chmod 666 /app/config/verification_codes.yaml && streamlit run app.py --server.address 0.0.0.0"]
+# Comando para ejecutar la aplicación
+CMD ["streamlit", "run", "app.py", "--server.address", "0.0.0.0"]

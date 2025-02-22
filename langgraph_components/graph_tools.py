@@ -13,9 +13,13 @@ from email.mime.text import MIMEText
 import base64
 from zoneinfo import ZoneInfo
 import yaml
+import fcntl
+import tempfile
+import shutil
+import stat
 
 # Almacenamiento temporal de códigos de verificación
-VERIFICATION_FILE = 'config/verification_codes.yaml'
+VERIFICATION_FILE = '/app/config/verification_codes.yaml'
 
 # Actualizar SCOPES para incluir Gmail
 SCOPES = [
@@ -71,29 +75,68 @@ def generate_verification_code():
     return ''.join(random.choices(string.digits, k=6))
 
 def save_verification_code(email: str, code: str):
-    """Guarda el código en el archivo YAML."""
+    """Guarda el código en el archivo YAML de manera segura y atómica."""
     try:
-        # Crear directorio si no existe
-        os.makedirs('config', exist_ok=True)
+        print(f"Iniciando guardado de código para {email}")
         
-        # Leer códigos existentes
+        config_dir = '/app/config'
+        verification_file = '/app/config/verification_codes.yaml'
+        
+        # Verificar permisos del directorio
+        if not os.path.exists(config_dir):
+            print(f"Creando directorio {config_dir}")
+            os.makedirs(config_dir, mode=0o777, exist_ok=True)
+        
+        # Verificar permisos actuales
+        dir_stat = os.stat(config_dir)
+        print(f"Permisos del directorio: {stat.filemode(dir_stat.st_mode)}")
+        print(f"Propietario: {dir_stat.st_uid}:{dir_stat.st_gid}")
+        
+        # Leer códigos existentes con bloqueo de archivo
         codes = {}
-        if os.path.exists(VERIFICATION_FILE):
-            with open(VERIFICATION_FILE, 'r') as f:
-                codes = yaml.safe_load(f) or {}
+        if os.path.exists(verification_file):
+            with open(verification_file, 'r') as f:
+                # Adquirir bloqueo exclusivo
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    codes = yaml.safe_load(f) or {}
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         
-        # Guardar nuevo código con tiempo de expiración
+        # Preparar nuevo código
         current = datetime.now(ZoneInfo('America/Bogota'))
         codes[email] = {
-            'code': str(code),  # Asegurar que se guarde como string
+            'code': str(code),
             'expires': (current + timedelta(minutes=10)).isoformat()
         }
         
-        # Escribir al archivo
-        with open(VERIFICATION_FILE, 'w') as f:
-            yaml.dump(codes, f)
+        # Escribir atómicamente usando archivo temporal
+        with tempfile.NamedTemporaryFile(mode='w', dir=config_dir, delete=False) as temp_file:
+            yaml.dump(codes, temp_file)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+            
+            # Establecer permisos en el archivo temporal
+            os.chmod(temp_file.name, 0o666)
+            
+        # Mover el archivo temporal al destino final (operación atómica)
+        shutil.move(temp_file.name, verification_file)
+        
+        # Verificar resultado final
+        if os.path.exists(verification_file):
+            file_stat = os.stat(verification_file)
+            print(f"Archivo guardado. Permisos: {stat.filemode(file_stat.st_mode)}")
+            print(f"Propietario: {file_stat.st_uid}:{file_stat.st_gid}")
+        else:
+            raise Exception("El archivo no existe después de la escritura")
+            
     except Exception as e:
-        print(f"Error guardando código: {e}")
+        print(f"Error guardando código: {str(e)}")
+        print(f"Estado del sistema:")
+        print(f"- Directorio actual: {os.getcwd()}")
+        print(f"- Usuario actual: {os.getuid()}:{os.getgid()}")
+        print(f"- Contenido de /app/config: {os.listdir('/app/config')}")
+        raise
 
 @tool
 def send_verification_code(email: str) -> str:
@@ -112,7 +155,7 @@ def send_verification_code(email: str) -> str:
         print(f"Código generado: {code}")
         
         # Verificar permisos del directorio
-        config_dir = os.path.dirname(VERIFICATION_FILE)
+        config_dir = '/app/config'
         print(f"Verificando permisos de {config_dir}")
         print(f"Permisos actuales: {oct(os.stat(config_dir).st_mode)}")
         
@@ -179,7 +222,12 @@ def verify_code(email: str, code: str) -> bool:
             return False
             
         with open(VERIFICATION_FILE, 'r') as f:
-            codes = yaml.safe_load(f) or {}
+            # Adquirir bloqueo compartido
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            try:
+                codes = yaml.safe_load(f) or {}
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         
         if email not in codes:
             print(f"No hay código para {email}")
@@ -196,7 +244,12 @@ def verify_code(email: str, code: str) -> bool:
             # Limpiar código expirado
             del codes[email]
             with open(VERIFICATION_FILE, 'w') as f:
-                yaml.dump(codes, f)
+                # Adquirir bloqueo exclusivo
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    yaml.dump(codes, f)
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             return False
             
         # Asegurar que ambos sean strings
@@ -211,7 +264,12 @@ def verify_code(email: str, code: str) -> bool:
         if is_valid:
             del codes[email]
             with open(VERIFICATION_FILE, 'w') as f:
-                yaml.dump(codes, f)
+                # Adquirir bloqueo exclusivo
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    yaml.dump(codes, f)
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             
         return is_valid
     except Exception as e:

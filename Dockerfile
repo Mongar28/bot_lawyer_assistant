@@ -43,23 +43,32 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Crear usuario no root y directorios necesarios
 ARG USER_ID=1000
 RUN useradd -u ${USER_ID} -m -s /bin/bash appuser && \
-    mkdir -p /app/config && \
-    mkdir -p /app/credentials && \
+    # Create directories with proper ownership from the start
+    mkdir -p /app/config /app/credentials && \
     touch /app/config/verification_codes.yaml && \
+    # Set ownership in a single layer
     chown -R appuser:appuser /app && \
-    chmod -R 755 /app && \
+    # Set directory permissions
+    find /app -type d -exec chmod 755 {} \; && \
+    # Set specific permissions for config directory and yaml file
     chmod 777 /app/config && \
     chmod 666 /app/config/verification_codes.yaml && \
-    chmod -R 777 /app/credentials
+    # Verify permissions were set correctly
+    ls -la /app/config && \
+    stat /app/config/verification_codes.yaml
 
 # Copiar el resto del código
 COPY --chown=appuser:appuser . .
 
 USER appuser
 
-# Asegurar permisos después de copiar
-RUN chmod -R 777 /app/config && \
-    chmod -R 777 /app/credentials
+# Asegurar permisos después de copiar y verificar
+RUN find /app -type d -exec chmod 755 {} \; && \
+    chmod 777 /app/config && \
+    chmod 666 /app/config/verification_codes.yaml && \
+    # Verify final permissions
+    ls -la /app/config && \
+    stat /app/config/verification_codes.yaml
 
 # Exponer el puerto que usa Streamlit
 EXPOSE 8501

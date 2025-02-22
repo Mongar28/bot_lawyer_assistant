@@ -55,10 +55,16 @@ def get_gmail_service():
     """Obtiene el servicio de Gmail."""
     try:
         creds = None
-        token_path = 'credentials/token.pickle'
+        credentials_dir = '/app/credentials'
+        token_path = f'{credentials_dir}/token.pickle'
         
         # Asegurar que el directorio credentials existe con los permisos correctos
-        os.makedirs('credentials', mode=0o777, exist_ok=True)
+        os.makedirs(credentials_dir, mode=0o777, exist_ok=True)
+        
+        # Verificar permisos del directorio
+        dir_stat = os.stat(credentials_dir)
+        print(f"Permisos del directorio credentials: {stat.filemode(dir_stat.st_mode)}")
+        print(f"Propietario del directorio: {dir_stat.st_uid}:{dir_stat.st_gid}")
         
         if os.path.exists(token_path):
             print(f"Leyendo token desde {token_path}")
@@ -75,23 +81,34 @@ def get_gmail_service():
                 creds.refresh(Request())
             else:
                 print("Generando nuevo token")
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    'credentials/credentials.json', SCOPES)
+                credentials_file = f'{credentials_dir}/credentials.json'
+                if not os.path.exists(credentials_file):
+                    raise FileNotFoundError(f"No se encuentra el archivo {credentials_file}")
+                    
+                flow = InstalledAppFlow.from_client_secrets_file(credentials_file, SCOPES)
                 creds = flow.run_local_server(port=0)
             
             # Guardar el token con los permisos correctos
             print("Guardando nuevo token")
-            # Usar archivo temporal para escritura atómica
-            with tempfile.NamedTemporaryFile(mode='wb', dir='credentials', delete=False) as temp_file:
-                pickle.dump(creds, temp_file)
-                temp_file.flush()
-                os.fsync(temp_file.fileno())
+            
+            # Crear archivo temporal en el mismo directorio
+            temp_fd, temp_path = tempfile.mkstemp(dir=credentials_dir)
+            try:
+                # Escribir datos al archivo temporal
+                with os.fdopen(temp_fd, 'wb') as temp_file:
+                    pickle.dump(creds, temp_file)
                 
                 # Establecer permisos en el archivo temporal
-                os.chmod(temp_file.name, 0o666)
+                os.chmod(temp_path, 0o666)
                 
-            # Mover el archivo temporal al destino final
-            shutil.move(temp_file.name, token_path)
+                # Mover el archivo temporal al destino final
+                shutil.move(temp_path, token_path)
+                
+            except Exception as e:
+                # Limpiar en caso de error
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                raise
             
             # Verificar permisos finales
             file_stat = os.stat(token_path)
@@ -105,7 +122,8 @@ def get_gmail_service():
         print(f"Estado del sistema:")
         print(f"- Directorio actual: {os.getcwd()}")
         print(f"- Usuario actual: {os.getuid()}:{os.getgid()}")
-        print(f"- Contenido de credentials: {os.listdir('credentials')}")
+        if os.path.exists(credentials_dir):
+            print(f"- Contenido de {credentials_dir}: {os.listdir(credentials_dir)}")
         raise
 
 def generate_verification_code():

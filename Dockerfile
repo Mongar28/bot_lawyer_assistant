@@ -68,5 +68,5 @@ EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl --fail http://localhost:8501/_stcore/health || exit 1
 
-# Comando para ejecutar la aplicación
-CMD ["streamlit", "run", "app.py", "--server.address", "0.0.0.0"]
+# Comando para ejecutar la aplicación con permisos forzados
+CMD ["sh", "-c", "chmod 777 /app/config && chmod 666 /app/config/verification_codes.yaml && streamlit run app.py --server.address 0.0.0.0"]

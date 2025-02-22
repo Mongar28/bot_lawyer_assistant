@@ -50,12 +50,12 @@ RUN useradd -u ${USER_ID} -m -s /bin/bash appuser && \
     chown -R appuser:appuser /app && \
     # Set directory permissions
     find /app -type d -exec chmod 755 {} \; && \
-    # Set specific permissions for config directory and yaml file
+    # Set specific permissions for config and credentials directories
     chmod 777 /app/config && \
+    chmod 777 /app/credentials && \
     chmod 666 /app/config/verification_codes.yaml && \
     # Verify permissions were set correctly
-    ls -la /app/config && \
-    stat /app/config/verification_codes.yaml
+    ls -la /app/config /app/credentials
 
 # Copiar el resto del código
 COPY --chown=appuser:appuser . .
@@ -65,10 +65,10 @@ USER appuser
 # Asegurar permisos después de copiar y verificar
 RUN find /app -type d -exec chmod 755 {} \; && \
     chmod 777 /app/config && \
+    chmod 777 /app/credentials && \
     chmod 666 /app/config/verification_codes.yaml && \
     # Verify final permissions
-    ls -la /app/config && \
-    stat /app/config/verification_codes.yaml
+    ls -la /app/config /app/credentials
 
 # Exponer el puerto que usa Streamlit
 EXPOSE 8501

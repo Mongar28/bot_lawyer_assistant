@@ -53,22 +53,60 @@ def get_calendar_service():
 
 def get_gmail_service():
     """Obtiene el servicio de Gmail."""
-    creds = None
-    if os.path.exists('credentials/token.pickle'):
-        with open('credentials/token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials/credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('credentials/token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
+    try:
+        creds = None
+        token_path = 'credentials/token.pickle'
+        
+        # Asegurar que el directorio credentials existe con los permisos correctos
+        os.makedirs('credentials', mode=0o777, exist_ok=True)
+        
+        if os.path.exists(token_path):
+            print(f"Leyendo token desde {token_path}")
+            try:
+                with open(token_path, 'rb') as token:
+                    creds = pickle.load(token)
+            except Exception as e:
+                print(f"Error leyendo token: {str(e)}")
+                creds = None
+        
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                print("Refrescando token expirado")
+                creds.refresh(Request())
+            else:
+                print("Generando nuevo token")
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    'credentials/credentials.json', SCOPES)
+                creds = flow.run_local_server(port=0)
+            
+            # Guardar el token con los permisos correctos
+            print("Guardando nuevo token")
+            # Usar archivo temporal para escritura atómica
+            with tempfile.NamedTemporaryFile(mode='wb', dir='credentials', delete=False) as temp_file:
+                pickle.dump(creds, temp_file)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+                
+                # Establecer permisos en el archivo temporal
+                os.chmod(temp_file.name, 0o666)
+                
+            # Mover el archivo temporal al destino final
+            shutil.move(temp_file.name, token_path)
+            
+            # Verificar permisos finales
+            file_stat = os.stat(token_path)
+            print(f"Token guardado. Permisos: {stat.filemode(file_stat.st_mode)}")
+            print(f"Propietario: {file_stat.st_uid}:{file_stat.st_gid}")
 
-    return build('gmail', 'v1', credentials=creds)
+        return build('gmail', 'v1', credentials=creds)
+        
+    except Exception as e:
+        print(f"Error en get_gmail_service: {str(e)}")
+        print(f"Estado del sistema:")
+        print(f"- Directorio actual: {os.getcwd()}")
+        print(f"- Usuario actual: {os.getuid()}:{os.getgid()}")
+        print(f"- Contenido de credentials: {os.listdir('credentials')}")
+        raise
 
 def generate_verification_code():
     """Genera un código de verificación de 6 dígitos."""
